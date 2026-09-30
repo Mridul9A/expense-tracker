@@ -7,6 +7,7 @@ import { seedDefaultCategoriesForUser } from "../db/categoryModel.js";
 import { signToken } from "../lib/jwt.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAuth } from "../lib/authMiddleware.js";
+import { loginLimiter, signupLimiter } from "../lib/rateLimit.js";
 
 const router = Router();
 
@@ -22,7 +23,7 @@ const loginRules = [
   body("password").notEmpty().withMessage("Password is required"),
 ];
 
-router.post("/signup", signupRules, asyncHandler(async (req, res) => {
+router.post("/signup", signupLimiter, signupRules, asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(422).json({ errors: errors.array() });
@@ -42,7 +43,7 @@ router.post("/signup", signupRules, asyncHandler(async (req, res) => {
   return res.status(201).json({ token, user });
 }));
 
-router.post("/login", loginRules, asyncHandler(async (req, res) => {
+router.post("/login", loginLimiter, loginRules, asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(422).json({ errors: errors.array() });

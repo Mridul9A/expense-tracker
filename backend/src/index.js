@@ -12,6 +12,11 @@ const PORT = process.env.PORT || 3001;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
+// Render (and most PaaS hosts) sit behind a reverse proxy — without this,
+// every request appears to come from the proxy's internal IP, which breaks
+// both per-IP rate limiting and req.ip generally.
+app.set("trust proxy", 1);
+
 app.use(cors({
   origin: process.env.FRONTEND_ORIGIN || "*",
   exposedHeaders: ["Idempotency-Key"],

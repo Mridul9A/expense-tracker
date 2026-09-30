@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 // Use a temp DB for tests
 process.env.DB_PATH = ":memory:";
 process.env.JWT_SECRET = "test-secret";
+process.env.NODE_ENV = "test";
 
 const BASE_URL = "http://localhost:3002";
 
