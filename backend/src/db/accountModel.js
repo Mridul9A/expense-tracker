@@ -67,6 +67,27 @@ export const getAccountById = async (id, userId) => {
   return serialize(rows[0], initialCents + incomeCents - expenseCents);
 };
 
+// Deleting an account cascades to its expenses/incomes — there's no FK
+// enforcement at the DB level (see db/index.js), and leaving orphaned
+// transaction rows behind would silently break every join that expects
+// e.account_id/i.account_id to resolve to a real account. Runs as one atomic
+// batch so a failure partway through can't leave transactions half-deleted.
+export const deleteAccount = async (id, userId) => {
+  const existing = await db.execute({
+    sql: "SELECT id FROM accounts WHERE id = $id AND user_id = $user_id",
+    args: { $id: id, $user_id: userId },
+  });
+  if (!existing.rows[0]) return false;
+
+  await db.batch([
+    { sql: "DELETE FROM expenses WHERE account_id = $id", args: { $id: id } },
+    { sql: "DELETE FROM incomes WHERE account_id = $id", args: { $id: id } },
+    { sql: "DELETE FROM accounts WHERE id = $id AND user_id = $user_id", args: { $id: id, $user_id: userId } },
+  ], "write");
+
+  return true;
+};
+
 export const listAccounts = async (userId) => {
   const { rows: accountRows } = await db.execute({
     sql: "SELECT * FROM accounts WHERE user_id = $user_id ORDER BY created_at ASC",

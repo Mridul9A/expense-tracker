@@ -1,8 +1,15 @@
 const formatMoney = (amount) =>
   parseFloat(amount).toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
-export function AccountList({ accounts, loading, error, onRetry }) {
+export function AccountList({ accounts, loading, error, onRetry, onDelete, deletingId, deleteError }) {
   const grandTotal = accounts.reduce((sum, a) => sum + parseFloat(a.balance), 0);
+
+  const handleDelete = (account) => {
+    const confirmed = window.confirm(
+      `Delete "${account.name}"? This also permanently deletes every expense and income entry on this account. This cannot be undone.`
+    );
+    if (confirmed) onDelete(account.id);
+  };
 
   return (
     <section className="expense-list-section">
@@ -25,6 +32,10 @@ export function AccountList({ accounts, loading, error, onRetry }) {
         </div>
       )}
 
+      {deleteError && (
+        <div className="alert alert-error">{deleteError}</div>
+      )}
+
       {loading && !accounts.length && (
         <div className="loading-state">
           <span className="spinner" />
@@ -43,6 +54,17 @@ export function AccountList({ accounts, loading, error, onRetry }) {
         <div className="account-cards">
           {accounts.map((a) => (
             <div key={a.id} className="account-card">
+              {onDelete && (
+                <button
+                  className="account-card-delete"
+                  onClick={() => handleDelete(a)}
+                  disabled={deletingId === a.id}
+                  title="Delete account"
+                  aria-label={`Delete ${a.name}`}
+                >
+                  {deletingId === a.id ? "…" : "✕"}
+                </button>
+              )}
               <div className="account-card-name">{a.name}</div>
               {a.bank_name && <div className="account-card-bank">{a.bank_name}</div>}
               <div

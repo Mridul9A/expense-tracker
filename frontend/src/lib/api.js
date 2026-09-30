@@ -161,6 +161,10 @@ export async function createAccount(formData) {
   });
 }
 
+export async function deleteAccount(id) {
+  return request(`/accounts/${id}`, { method: "DELETE" });
+}
+
 // ── Categories ────────────────────────────────────────────────────────────────
 
 export async function fetchCategories() {

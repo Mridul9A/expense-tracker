@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { body, validationResult } from "express-validator";
 import { v4 as uuidv4 } from "uuid";
-import { createAccount, listAccounts } from "../db/accountModel.js";
+import { createAccount, listAccounts, deleteAccount } from "../db/accountModel.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 
 const router = Router();
@@ -43,6 +43,14 @@ router.post("/", createAccountRules, asyncHandler(async (req, res) => {
 
 router.get("/", asyncHandler(async (req, res) => {
   return res.json({ data: await listAccounts(req.userId) });
+}));
+
+router.delete("/:id", asyncHandler(async (req, res) => {
+  const deleted = await deleteAccount(req.params.id, req.userId);
+  if (!deleted) {
+    return res.status(404).json({ error: "Account not found" });
+  }
+  return res.status(204).send();
 }));
 
 export default router;

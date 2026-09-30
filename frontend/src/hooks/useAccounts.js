@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchAccounts, createAccount as apiCreateAccount } from "../lib/api.js";
+import {
+  fetchAccounts,
+  createAccount as apiCreateAccount,
+  deleteAccount as apiDeleteAccount,
+} from "../lib/api.js";
 
 export function useAccounts() {
   const [accounts, setAccounts] = useState([]);
@@ -46,6 +50,25 @@ export function useAccounts() {
 
   const clearSubmitError = useCallback(() => setSubmitError(null), []);
 
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const deleteAccount = useCallback(async (id) => {
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      await apiDeleteAccount(id);
+      await load();
+      return { success: true };
+    } catch (err) {
+      const message = err.message || "Failed to delete account";
+      setDeleteError(message);
+      return { success: false, error: message };
+    } finally {
+      setDeletingId(null);
+    }
+  }, [load]);
+
   return {
     accounts,
     loading,
@@ -54,6 +77,9 @@ export function useAccounts() {
     submitting,
     submitError,
     clearSubmitError,
+    deleteAccount,
+    deletingId,
+    deleteError,
     reload: load,
   };
 }

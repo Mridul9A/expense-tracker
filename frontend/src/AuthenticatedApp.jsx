@@ -50,6 +50,18 @@ export function AuthenticatedApp({ user, onLogout }) {
     return result;
   };
 
+  // Deleting an account cascades to its expenses/income server-side, so both
+  // lists (and anything derived from them, like the dashboard charts) need a
+  // refresh or they'd keep showing now-deleted entries until the next reload.
+  const handleDeleteAccount = async (id) => {
+    const result = await accountsHook.deleteAccount(id);
+    if (result.success) {
+      expensesHook.reload();
+      incomesHook.reload();
+    }
+    return result;
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -167,6 +179,9 @@ export function AuthenticatedApp({ user, onLogout }) {
                 loading={accountsHook.loading}
                 error={accountsHook.error}
                 onRetry={accountsHook.reload}
+                onDelete={handleDeleteAccount}
+                deletingId={accountsHook.deletingId}
+                deleteError={accountsHook.deleteError}
               />
             </div>
           </div>

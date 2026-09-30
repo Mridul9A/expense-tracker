@@ -349,6 +349,62 @@ describe("Accounts", () => {
     // 50 initial + 100 income - 30 expense = 120
     assert.equal(updated.balance, "120.00");
   });
+
+  it("deletes an account and cascades to its expenses/incomes", async () => {
+    const createRes = await authed("/accounts", {
+      method: "POST",
+      body: JSON.stringify({ name: "To Be Deleted", initial_balance: "10.00" }),
+    });
+    const account = await createRes.json();
+
+    await authed("/incomes", {
+      method: "POST",
+      body: JSON.stringify({
+        account_id: account.id, amount: "5.00", source: "Gift", date: "2024-03-01",
+      }),
+    });
+    const expenseRes = await postExpense({ ...validExpense(), account_id: account.id });
+    const expense = await expenseRes.json();
+
+    const deleteRes = await authed(`/accounts/${account.id}`, { method: "DELETE" });
+    assert.equal(deleteRes.status, 204);
+
+    const listRes = await authed("/accounts");
+    const { data } = await listRes.json();
+    assert.ok(!data.some((a) => a.id === account.id));
+
+    const { rows } = await db.execute({
+      sql: "SELECT id FROM expenses WHERE id = $id",
+      args: { $id: expense.id },
+    });
+    assert.equal(rows.length, 0, "expense should be deleted along with its account");
+  });
+
+  it("returns 404 deleting an already-deleted or unknown account", async () => {
+    const res = await authed("/accounts/does-not-exist", { method: "DELETE" });
+    assert.equal(res.status, 404);
+  });
+
+  it("can't delete another user's account", async () => {
+    const createRes = await authed("/accounts", {
+      method: "POST",
+      body: JSON.stringify({ name: "Protected Account" }),
+    });
+    const account = await createRes.json();
+
+    const otherRes = await signup(`deleter-${Date.now()}@test.com`);
+    const { token: otherToken } = await otherRes.json();
+
+    const deleteRes = await fetch(`${BASE_URL}/accounts/${account.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${otherToken}` },
+    });
+    assert.equal(deleteRes.status, 404);
+
+    const stillThereRes = await authed("/accounts");
+    const { data } = await stillThereRes.json();
+    assert.ok(data.some((a) => a.id === account.id));
+  });
 });
 
 describe("Categories", () => {
