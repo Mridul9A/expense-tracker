@@ -10,12 +10,33 @@ import assert from "node:assert/strict";
 
 // Use a temp DB for tests
 process.env.DB_PATH = ":memory:";
+process.env.JWT_SECRET = "test-secret";
 
 const BASE_URL = "http://localhost:3002";
 
 let server;
+let token;
 let accountId;
 let categoryId;
+
+const signup = async (email, password = "password123") => {
+  const res = await fetch(`${BASE_URL}/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  return res;
+};
+
+const authed = (path, options = {}) =>
+  fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  });
 
 before(async () => {
   // Dynamic import so DB_PATH env var is picked up
@@ -24,14 +45,17 @@ before(async () => {
   // Wait for server to be ready
   await new Promise((r) => setTimeout(r, 100));
 
-  const accountRes = await fetch(`${BASE_URL}/accounts`, {
+  const signupRes = await signup(`primary-${Date.now()}@test.com`);
+  const signupBody = await signupRes.json();
+  token = signupBody.token;
+
+  const accountRes = await authed("/accounts", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: "Test Checking", initial_balance: "100.00" }),
   });
   accountId = (await accountRes.json()).id;
 
-  const categoriesRes = await fetch(`${BASE_URL}/categories`);
+  const categoriesRes = await authed("/categories");
   categoryId = (await categoriesRes.json()).data[0].id;
 });
 
@@ -40,14 +64,9 @@ after(() => {
 });
 
 const postExpense = (body, headers = {}) =>
-  fetch(`${BASE_URL}/expenses`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(body),
-  });
+  authed("/expenses", { method: "POST", body: JSON.stringify(body), headers });
 
-const getExpenses = (params = "") =>
-  fetch(`${BASE_URL}/expenses${params}`);
+const getExpenses = (params = "") => authed(`/expenses${params}`);
 
 const validExpense = () => ({
   amount: "12.50",
@@ -55,6 +74,116 @@ const validExpense = () => ({
   category_id: categoryId,
   description: "Lunch",
   date: "2024-03-15",
+});
+
+describe("Auth", () => {
+  it("signs up a new user and returns a token", async () => {
+    const res = await signup(`newuser-${Date.now()}@test.com`);
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.ok(body.token);
+    assert.ok(body.user.id);
+    assert.equal(body.user.password_hash, undefined);
+  });
+
+  it("seeds default categories for the new user", async () => {
+    const email = `seeded-${Date.now()}@test.com`;
+    const res = await signup(email);
+    const { token: newToken } = await res.json();
+    const catRes = await fetch(`${BASE_URL}/categories`, {
+      headers: { Authorization: `Bearer ${newToken}` },
+    });
+    const { data } = await catRes.json();
+    assert.ok(data.map((c) => c.name).includes("Rent"));
+  });
+
+  it("rejects duplicate signup email", async () => {
+    const email = `dupe-${Date.now()}@test.com`;
+    await signup(email);
+    const res = await signup(email);
+    assert.equal(res.status, 422);
+  });
+
+  it("rejects short passwords", async () => {
+    const res = await signup(`shortpw-${Date.now()}@test.com`, "abc");
+    assert.equal(res.status, 422);
+  });
+
+  it("logs in with correct credentials", async () => {
+    const email = `login-${Date.now()}@test.com`;
+    await signup(email, "correcthorse");
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: "correcthorse" }),
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(body.token);
+  });
+
+  it("rejects login with wrong password", async () => {
+    const email = `wrongpw-${Date.now()}@test.com`;
+    await signup(email, "correcthorse");
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: "wrongpassword" }),
+    });
+    assert.equal(res.status, 401);
+  });
+
+  it("rejects requests with no token", async () => {
+    const res = await fetch(`${BASE_URL}/accounts`);
+    assert.equal(res.status, 401);
+  });
+
+  it("rejects requests with a garbage token", async () => {
+    const res = await fetch(`${BASE_URL}/accounts`, {
+      headers: { Authorization: "Bearer not-a-real-token" },
+    });
+    assert.equal(res.status, 401);
+  });
+});
+
+describe("Cross-user isolation", () => {
+  it("can't see another user's accounts, categories, or expenses", async () => {
+    // Second, independent user
+    const res = await signup(`other-${Date.now()}@test.com`);
+    const { token: otherToken } = await res.json();
+    const otherFetch = (path, options = {}) =>
+      fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${otherToken}`,
+          ...options.headers,
+        },
+      });
+
+    const accountsRes = await otherFetch("/accounts");
+    const { data: otherAccounts } = await accountsRes.json();
+    assert.ok(!otherAccounts.some((a) => a.id === accountId));
+
+    // Can't create an expense against the primary user's account
+    const expenseRes = await otherFetch("/expenses", {
+      method: "POST",
+      body: JSON.stringify(validExpense()),
+    });
+    assert.equal(expenseRes.status, 422);
+
+    // Can't create an expense using the primary user's category, even with their own account
+    const ownAccountRes = await otherFetch("/accounts", {
+      method: "POST",
+      body: JSON.stringify({ name: "Other's Account" }),
+    });
+    const ownAccountId = (await ownAccountRes.json()).id;
+    const mixedRes = await otherFetch("/expenses", {
+      method: "POST",
+      body: JSON.stringify({ ...validExpense(), account_id: ownAccountId, category_id: categoryId }),
+    });
+    assert.equal(mixedRes.status, 422);
+  });
 });
 
 describe("POST /expenses", () => {
@@ -148,9 +277,8 @@ describe("GET /expenses", () => {
   });
 
   it("total reflects filtered results only", async () => {
-    const createRes = await fetch(`${BASE_URL}/accounts`, {
+    const createRes = await authed("/accounts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: `Filter-${Date.now()}` }),
     });
     const filterAccountId = (await createRes.json()).id;
@@ -166,9 +294,8 @@ describe("GET /expenses", () => {
 
 describe("Accounts", () => {
   it("creates an account with default zero balance", async () => {
-    const res = await fetch(`${BASE_URL}/accounts`, {
+    const res = await authed("/accounts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Savings" }),
     });
     assert.equal(res.status, 201);
@@ -177,23 +304,21 @@ describe("Accounts", () => {
   });
 
   it("balance reflects income minus expenses", async () => {
-    const createRes = await fetch(`${BASE_URL}/accounts`, {
+    const createRes = await authed("/accounts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Balance Test", initial_balance: "50.00" }),
     });
     const account = await createRes.json();
 
-    await fetch(`${BASE_URL}/incomes`, {
+    await authed("/incomes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         account_id: account.id, amount: "100.00", source: "Salary", date: "2024-03-01",
       }),
     });
     await postExpense({ ...validExpense(), account_id: account.id, amount: "30.00" });
 
-    const listRes = await fetch(`${BASE_URL}/accounts`);
+    const listRes = await authed("/accounts");
     const { data } = await listRes.json();
     const updated = data.find((a) => a.id === account.id);
     // 50 initial + 100 income - 30 expense = 120
@@ -203,7 +328,7 @@ describe("Accounts", () => {
 
 describe("Categories", () => {
   it("lists seeded default categories", async () => {
-    const res = await fetch(`${BASE_URL}/categories`);
+    const res = await authed("/categories");
     const body = await res.json();
     const names = body.data.map((c) => c.name);
     assert.ok(names.includes("Family"));
@@ -212,9 +337,8 @@ describe("Categories", () => {
   });
 
   it("creates a custom category", async () => {
-    const res = await fetch(`${BASE_URL}/categories`, {
+    const res = await authed("/categories", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: `Custom-${Date.now()}` }),
     });
     assert.equal(res.status, 201);
@@ -224,9 +348,8 @@ describe("Categories", () => {
   });
 
   it("rejects duplicate category names", async () => {
-    const res = await fetch(`${BASE_URL}/categories`, {
+    const res = await authed("/categories", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Family" }),
     });
     assert.equal(res.status, 422);
@@ -240,17 +363,17 @@ describe("Incomes", () => {
       account_id: accountId, amount: "500.00", source: "Salary", date: "2024-03-01",
     };
 
-    const res1 = await fetch(`${BASE_URL}/incomes`, {
+    const res1 = await authed("/incomes", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      headers: { "Idempotency-Key": key },
       body: JSON.stringify(body),
     });
     assert.equal(res1.status, 201);
     const income1 = await res1.json();
 
-    const res2 = await fetch(`${BASE_URL}/incomes`, {
+    const res2 = await authed("/incomes", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      headers: { "Idempotency-Key": key },
       body: JSON.stringify(body),
     });
     assert.equal(res2.status, 200);
@@ -259,9 +382,8 @@ describe("Incomes", () => {
   });
 
   it("returns 422 for unknown account_id", async () => {
-    const res = await fetch(`${BASE_URL}/incomes`, {
+    const res = await authed("/incomes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         account_id: "nope", amount: "10.00", source: "Gift", date: "2024-03-01",
       }),

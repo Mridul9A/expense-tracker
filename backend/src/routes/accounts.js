@@ -37,12 +37,12 @@ router.post("/", createAccountRules, asyncHandler(async (req, res) => {
   }
 
   const { name, bank_name, initial_balance } = req.body;
-  const account = await createAccount({ id: uuidv4(), name, bank_name, initial_balance });
+  const account = await createAccount({ id: uuidv4(), userId: req.userId, name, bank_name, initial_balance });
   return res.status(201).json(account);
 }));
 
-router.get("/", asyncHandler(async (_req, res) => {
-  return res.json({ data: await listAccounts() });
+router.get("/", asyncHandler(async (req, res) => {
+  return res.json({ data: await listAccounts(req.userId) });
 }));
 
 export default router;

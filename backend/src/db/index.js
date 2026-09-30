@@ -5,7 +5,6 @@
  * the exact same query code run unchanged in both environments.
  */
 import { createClient } from "@libsql/client";
-import { randomUUID } from "node:crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -31,9 +30,20 @@ const db = createClient({
   authToken: isRemote ? process.env.TURSO_AUTH_TOKEN : undefined,
 });
 
+// Every row in accounts/categories/incomes/expenses belongs to exactly one user —
+// there is no shared/global data. Categories are seeded per-user at signup
+// (see categoryModel.seedDefaultCategoriesForUser), not here.
 await db.executeMultiple(`
+  CREATE TABLE IF NOT EXISTS users (
+    id            TEXT PRIMARY KEY,
+    email         TEXT    NOT NULL UNIQUE,
+    password_hash TEXT    NOT NULL,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS accounts (
     id              TEXT PRIMARY KEY,
+    user_id         TEXT    NOT NULL REFERENCES users(id),
     name            TEXT    NOT NULL,
     bank_name       TEXT,
     initial_balance INTEGER NOT NULL DEFAULT 0,
@@ -42,7 +52,8 @@ await db.executeMultiple(`
 
   CREATE TABLE IF NOT EXISTS categories (
     id          TEXT PRIMARY KEY,
-    name        TEXT    NOT NULL UNIQUE,
+    user_id     TEXT    NOT NULL REFERENCES users(id),
+    name        TEXT    NOT NULL,
     color       TEXT    NOT NULL,
     is_default  INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -69,6 +80,11 @@ await db.executeMultiple(`
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name);
+
+  CREATE INDEX IF NOT EXISTS idx_accounts_user             ON accounts(user_id);
+  CREATE INDEX IF NOT EXISTS idx_categories_user            ON categories(user_id);
+
   CREATE INDEX IF NOT EXISTS idx_incomes_account         ON incomes(account_id);
   CREATE INDEX IF NOT EXISTS idx_incomes_date             ON incomes(date DESC);
   CREATE INDEX IF NOT EXISTS idx_incomes_idempotency_key  ON incomes(idempotency_key);
@@ -78,27 +94,5 @@ await db.executeMultiple(`
   CREATE INDEX IF NOT EXISTS idx_expenses_date            ON expenses(date DESC);
   CREATE INDEX IF NOT EXISTS idx_expenses_idempotency_key ON expenses(idempotency_key);
 `);
-
-// ── Seed default expense categories (first run only) ────────────────────────
-
-const DEFAULT_CATEGORIES = [
-  { name: "Family",      color: "#e86c4a" },
-  { name: "Rent",        color: "#8b5cf6" },
-  { name: "Self",        color: "#4a9ee8" },
-  { name: "Stocks",      color: "#10b981" },
-  { name: "Learning",    color: "#f59e0b" },
-  { name: "Money Waste", color: "#ef4444" },
-  { name: "Other",       color: "#6b7280" },
-];
-
-const { rows } = await db.execute("SELECT COUNT(*) AS count FROM categories");
-if (rows[0].count === 0) {
-  for (const cat of DEFAULT_CATEGORIES) {
-    await db.execute({
-      sql: `INSERT INTO categories (id, name, color, is_default) VALUES ($id, $name, $color, 1)`,
-      args: { $id: randomUUID(), $name: cat.name, $color: cat.color },
-    });
-  }
-}
 
 export default db;

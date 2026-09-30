@@ -4,6 +4,8 @@ import expensesRouter from "./routes/expenses.js";
 import accountsRouter from "./routes/accounts.js";
 import categoriesRouter from "./routes/categories.js";
 import incomesRouter from "./routes/incomes.js";
+import authRouter from "./routes/auth.js";
+import { requireAuth } from "./lib/authMiddleware.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,10 +28,14 @@ app.use((req, _res, next) => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
-app.use("/expenses", expensesRouter);
-app.use("/accounts", accountsRouter);
-app.use("/categories", categoriesRouter);
-app.use("/incomes", incomesRouter);
+app.use("/auth", authRouter);
+
+// Everything below requires a valid session — every account/category/expense/income
+// belongs to exactly one user.
+app.use("/expenses", requireAuth, expensesRouter);
+app.use("/accounts", requireAuth, accountsRouter);
+app.use("/categories", requireAuth, categoriesRouter);
+app.use("/incomes", requireAuth, incomesRouter);
 
 // ── Global error handler ──────────────────────────────────────────────────────
 

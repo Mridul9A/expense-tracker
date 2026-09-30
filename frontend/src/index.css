@@ -57,6 +57,33 @@ body {
   gap: 20px;
 }
 
+.header-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-email {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  font-family: var(--font-mono);
+}
+
+.btn-logout {
+  background: none;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-logout:hover { border-color: var(--accent); background: rgba(200,75,47,0.15); }
+
 .logo { display: flex; align-items: baseline; gap: 8px; }
 .logo-mark {
   font-family: var(--font-display);
@@ -460,6 +487,64 @@ input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
   color: var(--text-primary);
 }
 
+/* ── Auth Screen ────────────────────────────────────────────────────────────── */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.auth-logo {
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.auth-logo .logo-mark { color: var(--accent); }
+.auth-logo .logo-text { color: var(--text-primary); }
+
+.auth-tagline {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.auth-switch {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.auth-switch button {
+  background: none;
+  border: none;
+  color: var(--accent-dark);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
@@ -472,6 +557,7 @@ input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (max-width: 560px) {
   .app-main { padding: 16px; }
   .header-inner { flex-direction: column; gap: 4px; }
+  .header-user { margin-left: 0; }
   .form-row { grid-template-columns: 1fr; }
   .summary-row { grid-template-columns: 70px 1fr 40px 60px; }
   .tagline { display: none; }

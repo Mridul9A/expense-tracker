@@ -12,6 +12,17 @@
 // produce a double-slash path like ".com//accounts", which the backend 404s on.
 const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:3001").replace(/\/+$/, "");
 
+const TOKEN_STORAGE_KEY = "expense_tracker_token";
+
+export const getToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
+export const setToken = (token) => localStorage.setItem(TOKEN_STORAGE_KEY, token);
+export const clearToken = () => localStorage.removeItem(TOKEN_STORAGE_KEY);
+
+// Set by useAuth so a 401 from any request (expired/invalid token) can force a
+// logout without every call site having to handle it individually.
+let onUnauthorized = () => {};
+export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
+
 export class ApiError extends Error {
   constructor(status, data) {
     super(data?.error || "Request failed");
@@ -23,10 +34,12 @@ export class ApiError extends Error {
 
 async function request(path, options = {}) {
   const url = `${BASE_URL}${path}`;
+  const token = getToken();
   const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
@@ -34,6 +47,7 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401) onUnauthorized();
     throw new ApiError(response.status, data);
   }
 
@@ -84,6 +98,26 @@ async function postIdempotent(path, storageKey, body) {
     }
     throw err;
   }
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export async function signup({ email, password }) {
+  return request("/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function login({ email, password }) {
+  return request("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function fetchMe() {
+  return request("/auth/me");
 }
 
 // ── Expenses ──────────────────────────────────────────────────────────────────

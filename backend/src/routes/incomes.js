@@ -46,14 +46,14 @@ router.post("/", createIncomeRules, asyncHandler(async (req, res) => {
 
   const { account_id, amount, source, date } = req.body;
 
-  if (!(await getAccountById(account_id))) {
+  if (!(await getAccountById(account_id, req.userId))) {
     return res.status(422).json({ errors: [{ msg: "account_id does not exist" }] });
   }
 
   const idempotencyKey = req.headers["idempotency-key"] ?? null;
 
   if (idempotencyKey) {
-    const existing = await getIncomeByIdempotencyKey(idempotencyKey);
+    const existing = await getIncomeByIdempotencyKey(idempotencyKey, req.userId);
     if (existing) return res.status(200).json(existing);
   }
 
@@ -70,7 +70,7 @@ router.post("/", createIncomeRules, asyncHandler(async (req, res) => {
     return res.status(201).json(income);
   } catch (err) {
     if (err.code === "SQLITE_CONSTRAINT" && idempotencyKey) {
-      const existing = await getIncomeByIdempotencyKey(idempotencyKey);
+      const existing = await getIncomeByIdempotencyKey(idempotencyKey, req.userId);
       if (existing) return res.status(200).json(existing);
     }
     throw err;
@@ -84,7 +84,7 @@ router.get("/", listIncomesRules, asyncHandler(async (req, res) => {
   }
 
   const { account_id } = req.query;
-  const incomes = await listIncomes({ account_id });
+  const incomes = await listIncomes(req.userId, { account_id });
 
   const totalCents = incomes.reduce(
     (sum, i) => sum + Math.round(parseFloat(i.amount) * 100),

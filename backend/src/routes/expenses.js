@@ -55,10 +55,10 @@ router.post("/", createExpenseRules, asyncHandler(async (req, res) => {
 
   const { amount, account_id, category_id, description, date } = req.body;
 
-  if (!(await getAccountById(account_id))) {
+  if (!(await getAccountById(account_id, req.userId))) {
     return res.status(422).json({ errors: [{ msg: "account_id does not exist" }] });
   }
-  if (!(await getCategoryById(category_id))) {
+  if (!(await getCategoryById(category_id, req.userId))) {
     return res.status(422).json({ errors: [{ msg: "category_id does not exist" }] });
   }
 
@@ -69,7 +69,7 @@ router.post("/", createExpenseRules, asyncHandler(async (req, res) => {
   const idempotencyKey = req.headers["idempotency-key"] ?? null;
 
   if (idempotencyKey) {
-    const existing = await getExpenseByIdempotencyKey(idempotencyKey);
+    const existing = await getExpenseByIdempotencyKey(idempotencyKey, req.userId);
     if (existing) {
       // Return 200 (not 201) to signal "already processed" while remaining safe
       return res.status(200).json(existing);
@@ -92,7 +92,7 @@ router.post("/", createExpenseRules, asyncHandler(async (req, res) => {
     // UNIQUE constraint on idempotency_key — race condition between two concurrent
     // identical requests. Fetch and return the winner's record.
     if (err.code === "SQLITE_CONSTRAINT" && idempotencyKey) {
-      const existing = await getExpenseByIdempotencyKey(idempotencyKey);
+      const existing = await getExpenseByIdempotencyKey(idempotencyKey, req.userId);
       if (existing) return res.status(200).json(existing);
     }
     throw err; // re-throw for the global error handler
@@ -108,7 +108,7 @@ router.get("/", listExpensesRules, asyncHandler(async (req, res) => {
   }
 
   const { account_id, category_id } = req.query;
-  const expenses = await listExpenses({ account_id, category_id });
+  const expenses = await listExpenses(req.userId, { account_id, category_id });
 
   // Compute total in integer cents to avoid float arithmetic
   const totalCents = expenses.reduce(

@@ -29,16 +29,16 @@ router.post("/", createCategoryRules, asyncHandler(async (req, res) => {
 
   const { name, color } = req.body;
 
-  if (await getCategoryByName(name)) {
+  if (await getCategoryByName(name, req.userId)) {
     return res.status(422).json({ errors: [{ msg: `Category "${name}" already exists` }] });
   }
 
-  const category = await createCategory({ id: uuidv4(), name, color });
+  const category = await createCategory({ id: uuidv4(), userId: req.userId, name, color });
   return res.status(201).json(category);
 }));
 
-router.get("/", asyncHandler(async (_req, res) => {
-  return res.json({ data: await listCategories() });
+router.get("/", asyncHandler(async (req, res) => {
+  return res.json({ data: await listCategories(req.userId) });
 }));
 
 export default router;

@@ -227,6 +227,9 @@ gh repo create expense-tracker --private --source=. --remote=origin --push
 2. In the service's **Environment** tab, set:
    - `TURSO_DATABASE_URL` — from step 1
    - `TURSO_AUTH_TOKEN` — from step 1
+   - `JWT_SECRET` — any long random string (used to sign login sessions — generate one with
+     `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`). If deployed via the
+     Blueprint, Render generates this automatically.
    - `FRONTEND_ORIGIN` — leave blank for now, you'll fill this in after step 4
 3. Deploy. Once live, copy the service URL (e.g. `https://expense-tracker-api.onrender.com`) and confirm
    `https://<that-url>/health` returns `{"status":"ok"}`.

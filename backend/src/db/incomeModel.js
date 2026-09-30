@@ -1,3 +1,8 @@
+/**
+ * Incomes don't carry their own user_id — ownership is derived through the
+ * account they belong to, so every query joins accounts and filters on
+ * a.user_id. This avoids a second source of truth for who owns what.
+ */
 import db from "./index.js";
 
 const toCents  = (v) => Math.round(parseFloat(v) * 100);
@@ -38,10 +43,10 @@ export const createIncome = async ({ id, idempotency_key, account_id, amount, so
   return getIncomeById(id);
 };
 
-export const getIncomeByIdempotencyKey = async (key) => {
+export const getIncomeByIdempotencyKey = async (key, userId) => {
   const { rows } = await db.execute({
-    sql: `${SELECT_WITH_ACCOUNT} WHERE i.idempotency_key = $key`,
-    args: { $key: key },
+    sql: `${SELECT_WITH_ACCOUNT} WHERE i.idempotency_key = $key AND a.user_id = $user_id`,
+    args: { $key: key, $user_id: userId },
   });
   return rows[0] ? serialize(rows[0]) : null;
 };
@@ -54,12 +59,12 @@ export const getIncomeById = async (id) => {
   return rows[0] ? serialize(rows[0]) : null;
 };
 
-export const listIncomes = async ({ account_id } = {}) => {
-  let sql = SELECT_WITH_ACCOUNT;
-  const args = {};
+export const listIncomes = async (userId, { account_id } = {}) => {
+  let sql = `${SELECT_WITH_ACCOUNT} WHERE a.user_id = $user_id`;
+  const args = { $user_id: userId };
 
   if (account_id) {
-    sql += " WHERE i.account_id = $account_id";
+    sql += " AND i.account_id = $account_id";
     args.$account_id = account_id;
   }
 

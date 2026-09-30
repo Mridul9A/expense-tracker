@@ -23,40 +23,45 @@ const BALANCE_EXPR = `
     - COALESCE((SELECT SUM(amount) FROM expenses WHERE account_id = a.id), 0)
 `;
 
-export const createAccount = async ({ id, name, bank_name, initial_balance }) => {
+export const createAccount = async ({ id, userId, name, bank_name, initial_balance }) => {
   await db.execute({
     sql: `
-      INSERT INTO accounts (id, name, bank_name, initial_balance)
-      VALUES ($id, $name, $bank_name, $initial_balance)
+      INSERT INTO accounts (id, user_id, name, bank_name, initial_balance)
+      VALUES ($id, $user_id, $name, $bank_name, $initial_balance)
     `,
     args: {
       $id:              id,
+      $user_id:         userId,
       $name:            name.trim(),
       $bank_name:       bank_name?.trim() || null,
       $initial_balance: toCents(initial_balance ?? 0),
     },
   });
 
-  return getAccountById(id);
+  return getAccountById(id, userId);
 };
 
-export const getAccountById = async (id) => {
+export const getAccountById = async (id, userId) => {
   const { rows } = await db.execute({
     sql: `
       SELECT a.*, (${BALANCE_EXPR}) AS balance
       FROM accounts a
-      WHERE a.id = $id
+      WHERE a.id = $id AND a.user_id = $user_id
     `,
-    args: { $id: id },
+    args: { $id: id, $user_id: userId },
   });
   return rows[0] ? serialize(rows[0]) : null;
 };
 
-export const listAccounts = async () => {
-  const { rows } = await db.execute(`
-    SELECT a.*, (${BALANCE_EXPR}) AS balance
-    FROM accounts a
-    ORDER BY a.created_at ASC
-  `);
+export const listAccounts = async (userId) => {
+  const { rows } = await db.execute({
+    sql: `
+      SELECT a.*, (${BALANCE_EXPR}) AS balance
+      FROM accounts a
+      WHERE a.user_id = $user_id
+      ORDER BY a.created_at ASC
+    `,
+    args: { $user_id: userId },
+  });
   return rows.map(serialize);
 };

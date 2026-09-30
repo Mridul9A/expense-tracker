@@ -1,6 +1,7 @@
 /**
- * Named params use the $ prefix in both SQL and the args object, e.g.
- *   SQL: "WHERE id = $id"   args: { $id: value }
+ * Expenses don't carry their own user_id — ownership is derived through the
+ * account they belong to, so every query joins accounts and filters on
+ * a.user_id. This avoids a second source of truth for who owns what.
  *
  * Money stored as integer cents — zero floating-point drift.
  */
@@ -52,10 +53,10 @@ export const createExpense = async ({ id, idempotency_key, account_id, category_
   return getExpenseById(id);
 };
 
-export const getExpenseByIdempotencyKey = async (key) => {
+export const getExpenseByIdempotencyKey = async (key, userId) => {
   const { rows } = await db.execute({
-    sql: `${SELECT_WITH_JOINS} WHERE e.idempotency_key = $key`,
-    args: { $key: key },
+    sql: `${SELECT_WITH_JOINS} WHERE e.idempotency_key = $key AND a.user_id = $user_id`,
+    args: { $key: key, $user_id: userId },
   });
   return rows[0] ? serialize(rows[0]) : null;
 };
@@ -68,20 +69,18 @@ export const getExpenseById = async (id) => {
   return rows[0] ? serialize(rows[0]) : null;
 };
 
-export const listExpenses = async ({ account_id, category_id } = {}) => {
-  let sql = SELECT_WITH_JOINS;
-  const args = {};
-  const clauses = [];
+export const listExpenses = async (userId, { account_id, category_id } = {}) => {
+  let sql = `${SELECT_WITH_JOINS} WHERE a.user_id = $user_id`;
+  const args = { $user_id: userId };
 
   if (account_id) {
-    clauses.push("e.account_id = $account_id");
+    sql += " AND e.account_id = $account_id";
     args.$account_id = account_id;
   }
   if (category_id) {
-    clauses.push("e.category_id = $category_id");
+    sql += " AND e.category_id = $category_id";
     args.$category_id = category_id;
   }
-  if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
 
   sql += " ORDER BY e.date DESC, e.created_at DESC";
 
