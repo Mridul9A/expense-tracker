@@ -8,7 +8,9 @@
  * - Surfaces structured errors from the server (validation messages).
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+// Strip a trailing slash so a misconfigured env var (e.g. ".../ ") doesn't
+// produce a double-slash path like ".com//accounts", which the backend 404s on.
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:3001").replace(/\/+$/, "");
 
 export class ApiError extends Error {
   constructor(status, data) {
