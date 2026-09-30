@@ -1,5 +1,6 @@
 import db from "./index.js";
 import { randomUUID } from "node:crypto";
+import { encrypt, decrypt } from "../lib/crypto.js";
 
 // Deterministic-ish fallback palette for custom categories that don't specify a color.
 const PALETTE = [
@@ -16,7 +17,7 @@ const colorForName = (name) => {
 
 const serialize = (row) => ({
   id:         row.id,
-  name:       row.name,
+  name:       decrypt(row.name),
   color:      row.color,
   is_default: !!row.is_default,
   created_at: row.created_at,
@@ -41,14 +42,14 @@ export const seedDefaultCategoriesForUser = async (userId) => {
         INSERT INTO categories (id, user_id, name, color, is_default)
         VALUES ($id, $user_id, $name, $color, 1)
       `,
-      args: { $id: randomUUID(), $user_id: userId, $name: cat.name, $color: cat.color },
+      args: { $id: randomUUID(), $user_id: userId, $name: encrypt(cat.name), $color: cat.color },
     });
   }
 };
 
 export const listCategories = async (userId) => {
   const { rows } = await db.execute({
-    sql: "SELECT * FROM categories WHERE user_id = $user_id ORDER BY is_default DESC, name ASC",
+    sql: "SELECT * FROM categories WHERE user_id = $user_id ORDER BY is_default DESC, created_at ASC",
     args: { $user_id: userId },
   });
   return rows.map(serialize);
@@ -62,12 +63,13 @@ export const getCategoryById = async (id, userId) => {
   return rows[0] ? serialize(rows[0]) : null;
 };
 
+// Name is encrypted (non-deterministic ciphertext), so an exact-match SQL WHERE
+// no longer works — fetch the user's categories (a handful, at most) and compare
+// the decrypted names in application code instead.
 export const getCategoryByName = async (name, userId) => {
-  const { rows } = await db.execute({
-    sql: "SELECT * FROM categories WHERE name = $name COLLATE NOCASE AND user_id = $user_id",
-    args: { $name: name, $user_id: userId },
-  });
-  return rows[0] ? serialize(rows[0]) : null;
+  const categories = await listCategories(userId);
+  const target = name.trim().toLowerCase();
+  return categories.find((c) => c.name.toLowerCase() === target) ?? null;
 };
 
 export const createCategory = async ({ id, userId, name, color }) => {
@@ -80,7 +82,7 @@ export const createCategory = async ({ id, userId, name, color }) => {
     args: {
       $id:      id,
       $user_id: userId,
-      $name:    trimmed,
+      $name:    encrypt(trimmed),
       $color:   color?.trim() || colorForName(trimmed),
     },
   });

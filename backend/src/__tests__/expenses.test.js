@@ -12,10 +12,12 @@ import assert from "node:assert/strict";
 process.env.DB_PATH = ":memory:";
 process.env.JWT_SECRET = "test-secret";
 process.env.NODE_ENV = "test";
+process.env.ENCRYPTION_KEY = "0".repeat(64); // 32-byte hex key, test-only
 
 const BASE_URL = "http://localhost:3002";
 
 let server;
+let db;
 let token;
 let accountId;
 let categoryId;
@@ -42,6 +44,7 @@ const authed = (path, options = {}) =>
 before(async () => {
   // Dynamic import so DB_PATH env var is picked up
   const { default: app } = await import("../index.js");
+  ({ default: db } = await import("../db/index.js"));
   server = app.listen(3002);
   // Wait for server to be ready
   await new Promise((r) => setTimeout(r, 100));
@@ -184,6 +187,27 @@ describe("Cross-user isolation", () => {
       body: JSON.stringify({ ...validExpense(), account_id: ownAccountId, category_id: categoryId }),
     });
     assert.equal(mixedRes.status, 422);
+  });
+});
+
+describe("Encryption at rest", () => {
+  it("stores description/amount/account name/category name as ciphertext, not plaintext", async () => {
+    const res = await postExpense({ ...validExpense(), description: "Very private lunch details" });
+    const expense = await res.json();
+
+    const { rows } = await db.execute({
+      sql: "SELECT description, amount FROM expenses WHERE id = $id",
+      args: { $id: expense.id },
+    });
+    assert.notEqual(rows[0].description, "Very private lunch details");
+    assert.ok(rows[0].description.split(".").length === 3, "expected iv.tag.ciphertext format");
+    assert.notEqual(String(rows[0].amount), "1250"); // cents, would be the plaintext form
+
+    const { rows: accountRows } = await db.execute({
+      sql: "SELECT name FROM accounts WHERE id = $id",
+      args: { $id: accountId },
+    });
+    assert.notEqual(accountRows[0].name, "Test Checking");
   });
 });
 

@@ -44,16 +44,16 @@ await db.executeMultiple(`
   CREATE TABLE IF NOT EXISTS accounts (
     id              TEXT PRIMARY KEY,
     user_id         TEXT    NOT NULL REFERENCES users(id),
-    name            TEXT    NOT NULL,
-    bank_name       TEXT,
-    initial_balance INTEGER NOT NULL DEFAULT 0,
+    name            TEXT    NOT NULL, -- encrypted (lib/crypto.js)
+    bank_name       TEXT,             -- encrypted
+    initial_balance TEXT    NOT NULL, -- encrypted integer-cents string
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS categories (
     id          TEXT PRIMARY KEY,
     user_id     TEXT    NOT NULL REFERENCES users(id),
-    name        TEXT    NOT NULL,
+    name        TEXT    NOT NULL, -- encrypted
     color       TEXT    NOT NULL,
     is_default  INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -63,8 +63,8 @@ await db.executeMultiple(`
     id              TEXT PRIMARY KEY,
     idempotency_key TEXT UNIQUE,
     account_id      TEXT    NOT NULL REFERENCES accounts(id),
-    amount          INTEGER NOT NULL,
-    source          TEXT    NOT NULL,
+    amount          TEXT    NOT NULL, -- encrypted integer-cents string
+    source          TEXT    NOT NULL, -- encrypted
     date            TEXT    NOT NULL,
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
   );
@@ -74,8 +74,8 @@ await db.executeMultiple(`
     idempotency_key TEXT UNIQUE,
     account_id      TEXT    NOT NULL REFERENCES accounts(id),
     category_id     TEXT    NOT NULL REFERENCES categories(id),
-    amount          INTEGER NOT NULL,
-    description     TEXT    NOT NULL,
+    amount          TEXT    NOT NULL, -- encrypted integer-cents string
+    description     TEXT    NOT NULL, -- encrypted
     date            TEXT    NOT NULL,
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
   );

@@ -2,20 +2,22 @@
  * Incomes don't carry their own user_id — ownership is derived through the
  * account they belong to, so every query joins accounts and filters on
  * a.user_id. This avoids a second source of truth for who owns what.
+ *
+ * amount and source are encrypted at rest (see lib/crypto.js).
  */
 import db from "./index.js";
+import { encrypt, decrypt, encryptAmount, decryptAmount } from "../lib/crypto.js";
 
-const toCents  = (v) => Math.round(parseFloat(v) * 100);
 const fromCents = (c) => (c / 100).toFixed(2);
 
 const serialize = (row) => ({
   id:           row.id,
-  amount:       fromCents(row.amount),
-  source:       row.source,
+  amount:       fromCents(decryptAmount(row.amount)),
+  source:       decrypt(row.source),
   date:         row.date,
   created_at:   row.created_at,
   account_id:   row.account_id,
-  account_name: row.account_name,
+  account_name: decrypt(row.account_name),
 });
 
 const SELECT_WITH_ACCOUNT = `
@@ -34,8 +36,8 @@ export const createIncome = async ({ id, idempotency_key, account_id, amount, so
       $id:              id,
       $idempotency_key: idempotency_key ?? null,
       $account_id:      account_id,
-      $amount:          toCents(amount),
-      $source:          source.trim(),
+      $amount:          encryptAmount(Math.round(parseFloat(amount) * 100)),
+      $source:          encrypt(source.trim()),
       $date:            date,
     },
   });

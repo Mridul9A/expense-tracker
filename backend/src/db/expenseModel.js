@@ -3,23 +3,24 @@
  * account they belong to, so every query joins accounts and filters on
  * a.user_id. This avoids a second source of truth for who owns what.
  *
- * Money stored as integer cents — zero floating-point drift.
+ * amount and description are encrypted at rest (see lib/crypto.js). Filtering
+ * by account_id/category_id still works in SQL since those are unencrypted IDs.
  */
 import db from "./index.js";
+import { encrypt, decrypt, encryptAmount, decryptAmount } from "../lib/crypto.js";
 
-const toCents  = (v) => Math.round(parseFloat(v) * 100);
 const fromCents = (c) => (c / 100).toFixed(2);
 
 const serialize = (row) => ({
   id:             row.id,
-  amount:         fromCents(row.amount),
-  description:    row.description,
+  amount:         fromCents(decryptAmount(row.amount)),
+  description:    decrypt(row.description),
   date:           row.date,
   created_at:     row.created_at,
   account_id:     row.account_id,
-  account_name:   row.account_name,
+  account_name:   decrypt(row.account_name),
   category_id:    row.category_id,
-  category_name:  row.category_name,
+  category_name:  decrypt(row.category_name),
   category_color: row.category_color,
 });
 
@@ -44,8 +45,8 @@ export const createExpense = async ({ id, idempotency_key, account_id, category_
       $idempotency_key: idempotency_key ?? null,
       $account_id:      account_id,
       $category_id:     category_id,
-      $amount:          toCents(amount),
-      $description:     description.trim(),
+      $amount:          encryptAmount(Math.round(parseFloat(amount) * 100)),
+      $description:     encrypt(description.trim()),
       $date:            date,
     },
   });
