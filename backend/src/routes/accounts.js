@@ -1,0 +1,48 @@
+import { Router } from "express";
+import { body, validationResult } from "express-validator";
+import { v4 as uuidv4 } from "uuid";
+import { createAccount, listAccounts } from "../db/accountModel.js";
+import { asyncHandler } from "../lib/asyncHandler.js";
+
+const router = Router();
+
+const createAccountRules = [
+  body("name")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("name is required")
+    .isLength({ max: 100 }),
+  body("bank_name")
+    .optional({ checkFalsy: true })
+    .isString()
+    .trim()
+    .isLength({ max: 100 }),
+  body("initial_balance")
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0 })
+    .withMessage("initial_balance must be zero or a positive number")
+    .custom((v) => {
+      if (!/^\d+(\.\d{1,2})?$/.test(String(v))) {
+        throw new Error("initial_balance may have at most 2 decimal places");
+      }
+      return true;
+    }),
+];
+
+router.post("/", createAccountRules, asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.array() });
+  }
+
+  const { name, bank_name, initial_balance } = req.body;
+  const account = await createAccount({ id: uuidv4(), name, bank_name, initial_balance });
+  return res.status(201).json(account);
+}));
+
+router.get("/", asyncHandler(async (_req, res) => {
+  return res.json({ data: await listAccounts() });
+}));
+
+export default router;
