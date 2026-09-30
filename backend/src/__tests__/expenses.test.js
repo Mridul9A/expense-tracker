@@ -317,6 +317,98 @@ describe("GET /expenses", () => {
   });
 });
 
+describe("PUT /expenses/:id", () => {
+  it("updates an expense's fields", async () => {
+    const createRes = await postExpense(validExpense());
+    const expense = await createRes.json();
+
+    const res = await authed(`/expenses/${expense.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...validExpense(), amount: "99.99", description: "Updated description" }),
+    });
+    assert.equal(res.status, 200);
+    const updated = await res.json();
+    assert.equal(updated.amount, "99.99");
+    assert.equal(updated.description, "Updated description");
+    assert.equal(updated.id, expense.id);
+  });
+
+  it("returns 404 for an unknown expense", async () => {
+    const res = await authed("/expenses/does-not-exist", {
+      method: "PUT",
+      body: JSON.stringify(validExpense()),
+    });
+    assert.equal(res.status, 404);
+  });
+
+  it("can't update another user's expense", async () => {
+    const createRes = await postExpense(validExpense());
+    const expense = await createRes.json();
+
+    const otherRes = await signup(`expense-editor-${Date.now()}@test.com`);
+    const { token: otherToken } = await otherRes.json();
+
+    const res = await fetch(`${BASE_URL}/expenses/${expense.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${otherToken}` },
+      body: JSON.stringify(validExpense()),
+    });
+    assert.equal(res.status, 404);
+  });
+
+  it("returns 422 for invalid fields", async () => {
+    const createRes = await postExpense(validExpense());
+    const expense = await createRes.json();
+
+    const res = await authed(`/expenses/${expense.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...validExpense(), amount: "-5" }),
+    });
+    assert.equal(res.status, 422);
+  });
+});
+
+describe("DELETE /expenses/:id", () => {
+  it("deletes an expense", async () => {
+    const createRes = await postExpense(validExpense());
+    const expense = await createRes.json();
+
+    const deleteRes = await authed(`/expenses/${expense.id}`, { method: "DELETE" });
+    assert.equal(deleteRes.status, 204);
+
+    const listRes = await getExpenses();
+    const { data } = await listRes.json();
+    assert.ok(!data.some((e) => e.id === expense.id));
+  });
+
+  it("returns 404 deleting an already-deleted expense", async () => {
+    const createRes = await postExpense(validExpense());
+    const expense = await createRes.json();
+    await authed(`/expenses/${expense.id}`, { method: "DELETE" });
+
+    const res = await authed(`/expenses/${expense.id}`, { method: "DELETE" });
+    assert.equal(res.status, 404);
+  });
+
+  it("can't delete another user's expense", async () => {
+    const createRes = await postExpense(validExpense());
+    const expense = await createRes.json();
+
+    const otherRes = await signup(`expense-deleter-${Date.now()}@test.com`);
+    const { token: otherToken } = await otherRes.json();
+
+    const res = await fetch(`${BASE_URL}/expenses/${expense.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${otherToken}` },
+    });
+    assert.equal(res.status, 404);
+
+    const listRes = await getExpenses();
+    const { data } = await listRes.json();
+    assert.ok(data.some((e) => e.id === expense.id));
+  });
+});
+
 describe("Accounts", () => {
   it("creates an account with default zero balance", async () => {
     const res = await authed("/accounts", {
@@ -470,5 +562,70 @@ describe("Incomes", () => {
       }),
     });
     assert.equal(res.status, 422);
+  });
+
+  it("updates an income's fields", async () => {
+    const createRes = await authed("/incomes", {
+      method: "POST",
+      body: JSON.stringify({ account_id: accountId, amount: "10.00", source: "Gift", date: "2024-03-01" }),
+    });
+    const income = await createRes.json();
+
+    const res = await authed(`/incomes/${income.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ account_id: accountId, amount: "20.00", source: "Bonus", date: "2024-03-02" }),
+    });
+    assert.equal(res.status, 200);
+    const updated = await res.json();
+    assert.equal(updated.amount, "20.00");
+    assert.equal(updated.source, "Bonus");
+  });
+
+  it("returns 404 updating an unknown income", async () => {
+    const res = await authed("/incomes/does-not-exist", {
+      method: "PUT",
+      body: JSON.stringify({ account_id: accountId, amount: "10.00", source: "Gift", date: "2024-03-01" }),
+    });
+    assert.equal(res.status, 404);
+  });
+
+  it("deletes an income", async () => {
+    const createRes = await authed("/incomes", {
+      method: "POST",
+      body: JSON.stringify({ account_id: accountId, amount: "10.00", source: "To Delete", date: "2024-03-01" }),
+    });
+    const income = await createRes.json();
+
+    const deleteRes = await authed(`/incomes/${income.id}`, { method: "DELETE" });
+    assert.equal(deleteRes.status, 204);
+
+    const listRes = await authed("/incomes");
+    const { data } = await listRes.json();
+    assert.ok(!data.some((i) => i.id === income.id));
+  });
+
+  it("can't update or delete another user's income", async () => {
+    const createRes = await authed("/incomes", {
+      method: "POST",
+      body: JSON.stringify({ account_id: accountId, amount: "10.00", source: "Protected", date: "2024-03-01" }),
+    });
+    const income = await createRes.json();
+
+    const otherRes = await signup(`income-editor-${Date.now()}@test.com`);
+    const { token: otherToken } = await otherRes.json();
+    const otherHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${otherToken}` };
+
+    const updateRes = await fetch(`${BASE_URL}/incomes/${income.id}`, {
+      method: "PUT",
+      headers: otherHeaders,
+      body: JSON.stringify({ account_id: accountId, amount: "1.00", source: "Hacked", date: "2024-03-01" }),
+    });
+    assert.equal(updateRes.status, 404);
+
+    const deleteRes = await fetch(`${BASE_URL}/incomes/${income.id}`, {
+      method: "DELETE",
+      headers: otherHeaders,
+    });
+    assert.equal(deleteRes.status, 404);
   });
 });

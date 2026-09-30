@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchIncomes, createIncome as apiCreateIncome } from "../lib/api.js";
+import {
+  fetchIncomes,
+  createIncome as apiCreateIncome,
+  updateIncome as apiUpdateIncome,
+  deleteIncome as apiDeleteIncome,
+} from "../lib/api.js";
 
 const DEFAULT_FILTERS = { account_id: "" };
 
@@ -67,6 +72,44 @@ export function useIncomes() {
 
   const clearSubmitError = useCallback(() => setSubmitError(null), []);
 
+  const updateIncome = useCallback(async (id, formData) => {
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await apiUpdateIncome(id, formData);
+      await load(filters);
+      return { success: true };
+    } catch (err) {
+      const message = err.validationErrors
+        ? err.validationErrors.map((e) => e.msg).join(", ")
+        : err.message || "Failed to update income";
+      setSubmitError(message);
+      return { success: false, error: message };
+    } finally {
+      setSubmitting(false);
+    }
+  }, [filters, load]);
+
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const deleteIncome = useCallback(async (id) => {
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      await apiDeleteIncome(id);
+      await load(filters);
+      return { success: true };
+    } catch (err) {
+      const message = err.message || "Failed to delete income";
+      setDeleteError(message);
+      return { success: false, error: message };
+    } finally {
+      setDeletingId(null);
+    }
+  }, [filters, load]);
+
   return {
     incomes,
     meta,
@@ -75,6 +118,10 @@ export function useIncomes() {
     error,
     updateFilters,
     addIncome,
+    updateIncome,
+    deleteIncome,
+    deletingId,
+    deleteError,
     submitting,
     submitError,
     clearSubmitError,

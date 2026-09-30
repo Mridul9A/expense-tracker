@@ -213,6 +213,13 @@ input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
 .alert-error { background: var(--error-bg); color: var(--error); border: 1px solid #f5c6c0; }
 .alert-success { background: var(--success-bg); color: var(--success); border: 1px solid #b7f0d8; }
 
+.form-button-row {
+  display: flex;
+  gap: 10px;
+}
+.form-button-row .btn-primary { width: auto; flex: 1; }
+.form-button-row .btn-secondary { flex-shrink: 0; }
+
 .btn-primary {
   width: 100%;
   background: var(--accent);
@@ -362,6 +369,7 @@ input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 .expense-table tbody tr:hover { background: var(--surface-2); }
 .expense-table tbody tr.row-stale { opacity: 0.6; }
+.expense-table tbody tr.row-editing { background: var(--accent-light); }
 
 .expense-table td {
   padding: 11px 12px;
@@ -384,6 +392,30 @@ input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
   font-weight: 600;
   white-space: nowrap;
 }
+
+.col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.btn-row-action {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-row-action:hover:not(:disabled) { background: var(--surface); color: var(--text-primary); }
+.btn-row-action:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-row-action-danger:hover:not(:disabled) { background: var(--error-bg); color: var(--error); }
 
 .category-pill {
   display: inline-block;

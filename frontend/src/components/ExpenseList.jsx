@@ -11,7 +11,14 @@ const formatMoney = (amount) =>
 export function ExpenseList({
   expenses, meta, filters, accounts, categories,
   onFilterChange, loading, error, onRetry,
+  onEdit, onDelete, deletingId, editingId,
 }) {
+  const handleDelete = (expense) => {
+    if (window.confirm(`Delete this ${formatMoney(expense.amount)} expense? This cannot be undone.`)) {
+      onDelete(expense.id);
+    }
+  };
+
   return (
     <section className="expense-list-section">
       <div className="list-header">
@@ -105,11 +112,12 @@ export function ExpenseList({
                 <th>Category</th>
                 <th>Description</th>
                 <th className="col-amount">Amount</th>
+                {(onEdit || onDelete) && <th className="col-actions"></th>}
               </tr>
             </thead>
             <tbody>
               {expenses.map((e) => (
-                <tr key={e.id} className={loading ? "row-stale" : ""}>
+                <tr key={e.id} className={`${loading ? "row-stale" : ""} ${editingId === e.id ? "row-editing" : ""}`}>
                   <td className="col-date">{formatDate(e.date)}</td>
                   <td>{e.account_name}</td>
                   <td>
@@ -122,6 +130,32 @@ export function ExpenseList({
                   </td>
                   <td className="col-description">{e.description}</td>
                   <td className="col-amount">{formatMoney(e.amount)}</td>
+                  {(onEdit || onDelete) && (
+                    <td className="col-actions">
+                      {onEdit && (
+                        <button
+                          className="btn-row-action"
+                          onClick={() => onEdit(e)}
+                          disabled={deletingId === e.id}
+                          title="Edit"
+                          aria-label="Edit expense"
+                        >
+                          ✎
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="btn-row-action btn-row-action-danger"
+                          onClick={() => handleDelete(e)}
+                          disabled={deletingId === e.id}
+                          title="Delete"
+                          aria-label="Delete expense"
+                        >
+                          {deletingId === e.id ? "…" : "✕"}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -129,6 +163,7 @@ export function ExpenseList({
               <tr>
                 <td colSpan="4" className="total-label">Total</td>
                 <td className="col-amount total-value">{formatMoney(meta.total)}</td>
+                {(onEdit || onDelete) && <td></td>}
               </tr>
             </tfoot>
           </table>

@@ -1,13 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const today = () => new Date().toISOString().split("T")[0];
 
 const emptyForm = () => ({ amount: "", account_id: "", source: "", date: today() });
 
-export function IncomeForm({ accounts, onSubmit, submitting, submitError, onClearError }) {
-  const [form, setForm] = useState(emptyForm);
+const formFromIncome = (income) => ({
+  amount: income.amount,
+  account_id: income.account_id,
+  source: income.source,
+  date: income.date,
+});
+
+export function IncomeForm({ accounts, onSubmit, editingIncome, onCancelEdit, submitting, submitError, onClearError }) {
+  const [form, setForm] = useState(() => (editingIncome ? formFromIncome(editingIncome) : emptyForm()));
   const [localErrors, setLocalErrors] = useState({});
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setForm(editingIncome ? formFromIncome(editingIncome) : emptyForm());
+    setLocalErrors({});
+    setSuccess(false);
+  }, [editingIncome]);
 
   const set = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -39,15 +52,19 @@ export function IncomeForm({ accounts, onSubmit, submitting, submitError, onClea
 
     const result = await onSubmit(form);
     if (result.success) {
-      setForm({ ...emptyForm(), account_id: form.account_id });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      if (editingIncome) {
+        onCancelEdit();
+      } else {
+        setForm({ ...emptyForm(), account_id: form.account_id });
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
     }
   };
 
   return (
     <form className="expense-form" onSubmit={handleSubmit} noValidate>
-      <h2 className="form-title">Add Income</h2>
+      <h2 className="form-title">{editingIncome ? "Edit Income" : "Add Income"}</h2>
 
       <div className="form-row">
         <div className="field">
@@ -98,6 +115,7 @@ export function IncomeForm({ accounts, onSubmit, submitting, submitError, onClea
           className={localErrors.source ? "error" : ""}
           disabled={submitting}
           maxLength={200}
+          autoComplete="off"
         />
         {localErrors.source && <span className="field-error">{localErrors.source}</span>}
       </div>
@@ -127,16 +145,25 @@ export function IncomeForm({ accounts, onSubmit, submitting, submitError, onClea
         <div className="alert alert-success" role="status">Income added!</div>
       )}
 
-      <button type="submit" className="btn-primary" disabled={submitting || accounts.length === 0}>
-        {submitting ? (
-          <span className="btn-loading">
-            <span className="spinner" aria-hidden="true" />
-            Saving…
-          </span>
-        ) : (
-          "Add Income"
+      <div className="form-button-row">
+        <button type="submit" className="btn-primary" disabled={submitting || accounts.length === 0}>
+          {submitting ? (
+            <span className="btn-loading">
+              <span className="spinner" aria-hidden="true" />
+              Saving…
+            </span>
+          ) : editingIncome ? (
+            "Save Changes"
+          ) : (
+            "Add Income"
+          )}
+        </button>
+        {editingIncome && (
+          <button type="button" className="btn-secondary" onClick={onCancelEdit} disabled={submitting}>
+            Cancel
+          </button>
         )}
-      </button>
+      </div>
     </form>
   );
 }

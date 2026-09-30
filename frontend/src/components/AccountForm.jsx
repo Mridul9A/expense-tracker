@@ -58,6 +58,7 @@ export function AccountForm({ onSubmit, submitting, submitError, onClearError })
           className={localErrors.name ? "error" : ""}
           disabled={submitting}
           maxLength={100}
+          autoComplete="off"
         />
         {localErrors.name && <span className="field-error">{localErrors.name}</span>}
       </div>
@@ -73,6 +74,7 @@ export function AccountForm({ onSubmit, submitting, submitError, onClearError })
             onChange={set("bank_name")}
             disabled={submitting}
             maxLength={100}
+            autoComplete="off"
           />
         </div>
 

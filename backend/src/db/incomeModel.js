@@ -61,6 +61,39 @@ export const getIncomeById = async (id) => {
   return rows[0] ? serialize(rows[0]) : null;
 };
 
+export const getIncomeByIdForUser = async (id, userId) => {
+  const { rows } = await db.execute({
+    sql: `${SELECT_WITH_ACCOUNT} WHERE i.id = $id AND a.user_id = $user_id`,
+    args: { $id: id, $user_id: userId },
+  });
+  return rows[0] ? serialize(rows[0]) : null;
+};
+
+export const updateIncome = async ({ id, account_id, amount, source, date }) => {
+  await db.execute({
+    sql: `
+      UPDATE incomes
+      SET account_id = $account_id, amount = $amount, source = $source, date = $date
+      WHERE id = $id
+    `,
+    args: {
+      $id:         id,
+      $account_id: account_id,
+      $amount:     encryptAmount(Math.round(parseFloat(amount) * 100)),
+      $source:     encrypt(source.trim()),
+      $date:       date,
+    },
+  });
+  return getIncomeById(id);
+};
+
+export const deleteIncome = async (id, userId) => {
+  const existing = await getIncomeByIdForUser(id, userId);
+  if (!existing) return false;
+  await db.execute({ sql: "DELETE FROM incomes WHERE id = $id", args: { $id: id } });
+  return true;
+};
+
 export const listIncomes = async (userId, { account_id } = {}) => {
   let sql = `${SELECT_WITH_ACCOUNT} WHERE a.user_id = $user_id`;
   const args = { $user_id: userId };

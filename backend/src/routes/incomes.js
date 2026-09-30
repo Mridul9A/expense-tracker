@@ -5,6 +5,9 @@ import {
   createIncome,
   listIncomes,
   getIncomeByIdempotencyKey,
+  getIncomeByIdForUser,
+  updateIncome,
+  deleteIncome,
 } from "../db/incomeModel.js";
 import { getAccountById } from "../db/accountModel.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
@@ -95,6 +98,42 @@ router.get("/", listIncomesRules, asyncHandler(async (req, res) => {
     data: incomes,
     meta: { count: incomes.length, total: (totalCents / 100).toFixed(2) },
   });
+}));
+
+router.put("/:id", createIncomeRules, asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.array() });
+  }
+
+  const existing = await getIncomeByIdForUser(req.params.id, req.userId);
+  if (!existing) {
+    return res.status(404).json({ error: "Income not found" });
+  }
+
+  const { account_id, amount, source, date } = req.body;
+
+  if (!(await getAccountById(account_id, req.userId))) {
+    return res.status(422).json({ errors: [{ msg: "account_id does not exist" }] });
+  }
+
+  const income = await updateIncome({
+    id: req.params.id,
+    account_id,
+    amount,
+    source,
+    date: date instanceof Date ? date.toISOString().split("T")[0] : date,
+  });
+
+  return res.json(income);
+}));
+
+router.delete("/:id", asyncHandler(async (req, res) => {
+  const deleted = await deleteIncome(req.params.id, req.userId);
+  if (!deleted) {
+    return res.status(404).json({ error: "Income not found" });
+  }
+  return res.status(204).send();
 }));
 
 export default router;

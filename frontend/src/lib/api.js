@@ -135,6 +135,17 @@ export async function fetchExpenses({ account_id, category_id, sort } = {}) {
   return request(`/expenses${qs}`);
 }
 
+export async function updateExpense(id, formData) {
+  return request(`/expenses/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(formData),
+  });
+}
+
+export async function deleteExpense(id) {
+  return request(`/expenses/${id}`, { method: "DELETE" });
+}
+
 // ── Income ────────────────────────────────────────────────────────────────────
 
 export function createIncome(formData) {
@@ -146,6 +157,17 @@ export async function fetchIncomes({ account_id } = {}) {
   if (account_id) params.set("account_id", account_id);
   const qs = params.toString() ? `?${params}` : "";
   return request(`/incomes${qs}`);
+}
+
+export async function updateIncome(id, formData) {
+  return request(`/incomes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(formData),
+  });
+}
+
+export async function deleteIncome(id) {
+  return request(`/incomes/${id}`, { method: "DELETE" });
 }
 
 // ── Accounts ──────────────────────────────────────────────────────────────────

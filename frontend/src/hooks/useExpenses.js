@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchExpenses, createExpense as apiCreateExpense } from "../lib/api.js";
+import {
+  fetchExpenses,
+  createExpense as apiCreateExpense,
+  updateExpense as apiUpdateExpense,
+  deleteExpense as apiDeleteExpense,
+} from "../lib/api.js";
 
 const DEFAULT_FILTERS = { account_id: "", category_id: "", sort: "date_desc" };
 
@@ -71,6 +76,44 @@ export function useExpenses() {
 
   const clearSubmitError = useCallback(() => setSubmitError(null), []);
 
+  const updateExpense = useCallback(async (id, formData) => {
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await apiUpdateExpense(id, formData);
+      await load(filters);
+      return { success: true };
+    } catch (err) {
+      const message = err.validationErrors
+        ? err.validationErrors.map((e) => e.msg).join(", ")
+        : err.message || "Failed to update expense";
+      setSubmitError(message);
+      return { success: false, error: message };
+    } finally {
+      setSubmitting(false);
+    }
+  }, [filters, load]);
+
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const deleteExpense = useCallback(async (id) => {
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      await apiDeleteExpense(id);
+      await load(filters);
+      return { success: true };
+    } catch (err) {
+      const message = err.message || "Failed to delete expense";
+      setDeleteError(message);
+      return { success: false, error: message };
+    } finally {
+      setDeletingId(null);
+    }
+  }, [filters, load]);
+
   return {
     expenses,
     meta,
@@ -79,6 +122,10 @@ export function useExpenses() {
     error,
     updateFilters,
     addExpense,
+    updateExpense,
+    deleteExpense,
+    deletingId,
+    deleteError,
     submitting,
     submitError,
     clearSubmitError,

@@ -70,6 +70,41 @@ export const getExpenseById = async (id) => {
   return rows[0] ? serialize(rows[0]) : null;
 };
 
+export const getExpenseByIdForUser = async (id, userId) => {
+  const { rows } = await db.execute({
+    sql: `${SELECT_WITH_JOINS} WHERE e.id = $id AND a.user_id = $user_id`,
+    args: { $id: id, $user_id: userId },
+  });
+  return rows[0] ? serialize(rows[0]) : null;
+};
+
+export const updateExpense = async ({ id, account_id, category_id, amount, description, date }) => {
+  await db.execute({
+    sql: `
+      UPDATE expenses
+      SET account_id = $account_id, category_id = $category_id,
+          amount = $amount, description = $description, date = $date
+      WHERE id = $id
+    `,
+    args: {
+      $id:          id,
+      $account_id:  account_id,
+      $category_id: category_id,
+      $amount:      encryptAmount(Math.round(parseFloat(amount) * 100)),
+      $description: encrypt(description.trim()),
+      $date:        date,
+    },
+  });
+  return getExpenseById(id);
+};
+
+export const deleteExpense = async (id, userId) => {
+  const existing = await getExpenseByIdForUser(id, userId);
+  if (!existing) return false;
+  await db.execute({ sql: "DELETE FROM expenses WHERE id = $id", args: { $id: id } });
+  return true;
+};
+
 export const listExpenses = async (userId, { account_id, category_id } = {}) => {
   let sql = `${SELECT_WITH_JOINS} WHERE a.user_id = $user_id`;
   const args = { $user_id: userId };

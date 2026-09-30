@@ -8,7 +8,16 @@ const formatDate = (iso) => {
 const formatMoney = (amount) =>
   parseFloat(amount).toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
-export function IncomeList({ incomes, meta, filters, accounts, onFilterChange, loading, error, onRetry }) {
+export function IncomeList({
+  incomes, meta, filters, accounts, onFilterChange, loading, error, onRetry,
+  onEdit, onDelete, deletingId, editingId,
+}) {
+  const handleDelete = (income) => {
+    if (window.confirm(`Delete this ${formatMoney(income.amount)} income entry? This cannot be undone.`)) {
+      onDelete(income.id);
+    }
+  };
+
   return (
     <section className="expense-list-section">
       <div className="list-header">
@@ -76,15 +85,42 @@ export function IncomeList({ incomes, meta, filters, accounts, onFilterChange, l
                 <th>Account</th>
                 <th>Source</th>
                 <th className="col-amount">Amount</th>
+                {(onEdit || onDelete) && <th className="col-actions"></th>}
               </tr>
             </thead>
             <tbody>
               {incomes.map((i) => (
-                <tr key={i.id} className={loading ? "row-stale" : ""}>
+                <tr key={i.id} className={`${loading ? "row-stale" : ""} ${editingId === i.id ? "row-editing" : ""}`}>
                   <td className="col-date">{formatDate(i.date)}</td>
                   <td>{i.account_name}</td>
                   <td className="col-description">{i.source}</td>
                   <td className="col-amount income-amount">+{formatMoney(i.amount)}</td>
+                  {(onEdit || onDelete) && (
+                    <td className="col-actions">
+                      {onEdit && (
+                        <button
+                          className="btn-row-action"
+                          onClick={() => onEdit(i)}
+                          disabled={deletingId === i.id}
+                          title="Edit"
+                          aria-label="Edit income"
+                        >
+                          ✎
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="btn-row-action btn-row-action-danger"
+                          onClick={() => handleDelete(i)}
+                          disabled={deletingId === i.id}
+                          title="Delete"
+                          aria-label="Delete income"
+                        >
+                          {deletingId === i.id ? "…" : "✕"}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -92,6 +128,7 @@ export function IncomeList({ incomes, meta, filters, accounts, onFilterChange, l
               <tr>
                 <td colSpan="3" className="total-label">Total</td>
                 <td className="col-amount total-value">{formatMoney(meta.total)}</td>
+                {(onEdit || onDelete) && <td></td>}
               </tr>
             </tfoot>
           </table>

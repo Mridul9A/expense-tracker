@@ -5,6 +5,9 @@ import {
   createExpense,
   listExpenses,
   getExpenseByIdempotencyKey,
+  getExpenseByIdForUser,
+  updateExpense,
+  deleteExpense,
 } from "../db/expenseModel.js";
 import { getAccountById } from "../db/accountModel.js";
 import { getCategoryById } from "../db/categoryModel.js";
@@ -123,6 +126,50 @@ router.get("/", listExpensesRules, asyncHandler(async (req, res) => {
       total: (totalCents / 100).toFixed(2),
     },
   });
+}));
+
+// ── PUT /expenses/:id ─────────────────────────────────────────────────────────
+
+router.put("/:id", createExpenseRules, asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.array() });
+  }
+
+  const existing = await getExpenseByIdForUser(req.params.id, req.userId);
+  if (!existing) {
+    return res.status(404).json({ error: "Expense not found" });
+  }
+
+  const { amount, account_id, category_id, description, date } = req.body;
+
+  if (!(await getAccountById(account_id, req.userId))) {
+    return res.status(422).json({ errors: [{ msg: "account_id does not exist" }] });
+  }
+  if (!(await getCategoryById(category_id, req.userId))) {
+    return res.status(422).json({ errors: [{ msg: "category_id does not exist" }] });
+  }
+
+  const expense = await updateExpense({
+    id: req.params.id,
+    amount,
+    account_id,
+    category_id,
+    description,
+    date: date instanceof Date ? date.toISOString().split("T")[0] : date,
+  });
+
+  return res.json(expense);
+}));
+
+// ── DELETE /expenses/:id ──────────────────────────────────────────────────────
+
+router.delete("/:id", asyncHandler(async (req, res) => {
+  const deleted = await deleteExpense(req.params.id, req.userId);
+  if (!deleted) {
+    return res.status(404).json({ error: "Expense not found" });
+  }
+  return res.status(204).send();
 }));
 
 export default router;

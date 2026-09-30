@@ -21,6 +21,14 @@ const TABS = [
 
 export function AuthenticatedApp({ user, onLogout }) {
   const [tab, setTab] = useState("dashboard");
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [editingIncome, setEditingIncome] = useState(null);
+
+  const changeTab = (next) => {
+    setTab(next);
+    setEditingExpense(null);
+    setEditingIncome(null);
+  };
 
   const accountsHook = useAccounts();
   const categoriesHook = useCategories();
@@ -37,16 +45,38 @@ export function AuthenticatedApp({ user, onLogout }) {
   };
 
   // Expenses and income both move money in/out of an account's computed balance,
-  // so accounts must be refreshed after either succeeds.
-  const handleAddExpense = async (formData) => {
-    const result = await expensesHook.addExpense(formData);
+  // so accounts must be refreshed after any create/update/delete succeeds.
+  const handleSubmitExpense = async (formData) => {
+    const result = editingExpense
+      ? await expensesHook.updateExpense(editingExpense.id, formData)
+      : await expensesHook.addExpense(formData);
     if (result.success) accountsHook.reload();
     return result;
   };
 
-  const handleAddIncome = async (formData) => {
-    const result = await incomesHook.addIncome(formData);
+  const handleDeleteExpense = async (id) => {
+    const result = await expensesHook.deleteExpense(id);
+    if (result.success) {
+      accountsHook.reload();
+      if (editingExpense?.id === id) setEditingExpense(null);
+    }
+    return result;
+  };
+
+  const handleSubmitIncome = async (formData) => {
+    const result = editingIncome
+      ? await incomesHook.updateIncome(editingIncome.id, formData)
+      : await incomesHook.addIncome(formData);
     if (result.success) accountsHook.reload();
+    return result;
+  };
+
+  const handleDeleteIncome = async (id) => {
+    const result = await incomesHook.deleteIncome(id);
+    if (result.success) {
+      accountsHook.reload();
+      if (editingIncome?.id === id) setEditingIncome(null);
+    }
     return result;
   };
 
@@ -84,7 +114,7 @@ export function AuthenticatedApp({ user, onLogout }) {
             <button
               key={t.id}
               className={`tab-btn ${tab === t.id ? "active" : ""}`}
-              onClick={() => setTab(t.id)}
+              onClick={() => changeTab(t.id)}
             >
               {t.label}
             </button>
@@ -114,8 +144,10 @@ export function AuthenticatedApp({ user, onLogout }) {
               <ExpenseForm
                 accounts={accounts}
                 categories={categories}
-                onSubmit={handleAddExpense}
+                onSubmit={handleSubmitExpense}
                 onAddCategory={handleAddCategory}
+                editingExpense={editingExpense}
+                onCancelEdit={() => setEditingExpense(null)}
                 submitting={expensesHook.submitting}
                 submitError={expensesHook.submitError}
                 onClearError={expensesHook.clearSubmitError}
@@ -132,6 +164,10 @@ export function AuthenticatedApp({ user, onLogout }) {
                 loading={expensesHook.loading}
                 error={expensesHook.error}
                 onRetry={expensesHook.reload}
+                onEdit={setEditingExpense}
+                onDelete={handleDeleteExpense}
+                deletingId={expensesHook.deletingId}
+                editingId={editingExpense?.id}
               />
             </div>
           </div>
@@ -142,7 +178,9 @@ export function AuthenticatedApp({ user, onLogout }) {
             <aside className="sidebar">
               <IncomeForm
                 accounts={accounts}
-                onSubmit={handleAddIncome}
+                onSubmit={handleSubmitIncome}
+                editingIncome={editingIncome}
+                onCancelEdit={() => setEditingIncome(null)}
                 submitting={incomesHook.submitting}
                 submitError={incomesHook.submitError}
                 onClearError={incomesHook.clearSubmitError}
@@ -158,6 +196,10 @@ export function AuthenticatedApp({ user, onLogout }) {
                 loading={incomesHook.loading}
                 error={incomesHook.error}
                 onRetry={incomesHook.reload}
+                onEdit={setEditingIncome}
+                onDelete={handleDeleteIncome}
+                deletingId={incomesHook.deletingId}
+                editingId={editingIncome?.id}
               />
             </div>
           </div>

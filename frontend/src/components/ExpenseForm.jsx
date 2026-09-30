@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const today = () => new Date().toISOString().split("T")[0];
 
@@ -10,18 +10,34 @@ const emptyForm = (accountId = "") => ({
   date: today(),
 });
 
+const formFromExpense = (expense) => ({
+  amount: expense.amount,
+  account_id: expense.account_id,
+  category_id: expense.category_id,
+  description: expense.description,
+  date: expense.date,
+});
+
 const NEW_CATEGORY = "__new__";
 
 export function ExpenseForm({
-  accounts, categories, onSubmit, onAddCategory,
+  accounts, categories, onSubmit, onAddCategory, editingExpense, onCancelEdit,
   submitting, submitError, onClearError,
 }) {
-  const [form, setForm] = useState(() => emptyForm());
+  const [form, setForm] = useState(() => (editingExpense ? formFromExpense(editingExpense) : emptyForm()));
   const [localErrors, setLocalErrors] = useState({});
   const [success, setSuccess] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
   const [categoryError, setCategoryError] = useState(null);
+
+  // Swap the form's contents whenever the thing we're editing changes —
+  // covers both entering edit mode and switching to a different expense.
+  useEffect(() => {
+    setForm(editingExpense ? formFromExpense(editingExpense) : emptyForm());
+    setLocalErrors({});
+    setSuccess(false);
+  }, [editingExpense]);
 
   const set = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -89,15 +105,19 @@ export function ExpenseForm({
 
     const result = await onSubmit(form);
     if (result.success) {
-      setForm(emptyForm(form.account_id));
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      if (editingExpense) {
+        onCancelEdit();
+      } else {
+        setForm(emptyForm(form.account_id));
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
     }
   };
 
   return (
     <form className="expense-form" onSubmit={handleSubmit} noValidate>
-      <h2 className="form-title">Add Expense</h2>
+      <h2 className="form-title">{editingExpense ? "Edit Expense" : "Add Expense"}</h2>
 
       <div className="form-row">
         <div className="field">
@@ -163,6 +183,7 @@ export function ExpenseForm({
               onChange={(e) => setNewCategoryName(e.target.value)}
               disabled={addingCategory}
               maxLength={50}
+              autoComplete="off"
             />
             <button
               type="button"
@@ -196,6 +217,7 @@ export function ExpenseForm({
           className={localErrors.description ? "error" : ""}
           disabled={submitting}
           maxLength={500}
+          autoComplete="off"
         />
         {localErrors.description && <span className="field-error">{localErrors.description}</span>}
       </div>
@@ -229,16 +251,25 @@ export function ExpenseForm({
         </div>
       )}
 
-      <button type="submit" className="btn-primary" disabled={submitting || accounts.length === 0}>
-        {submitting ? (
-          <span className="btn-loading">
-            <span className="spinner" aria-hidden="true" />
-            Saving…
-          </span>
-        ) : (
-          "Add Expense"
+      <div className="form-button-row">
+        <button type="submit" className="btn-primary" disabled={submitting || accounts.length === 0}>
+          {submitting ? (
+            <span className="btn-loading">
+              <span className="spinner" aria-hidden="true" />
+              Saving…
+            </span>
+          ) : editingExpense ? (
+            "Save Changes"
+          ) : (
+            "Add Expense"
+          )}
+        </button>
+        {editingExpense && (
+          <button type="button" className="btn-secondary" onClick={onCancelEdit} disabled={submitting}>
+            Cancel
+          </button>
         )}
-      </button>
+      </div>
     </form>
   );
 }
