@@ -17,12 +17,8 @@ const PORT = process.env.PORT || 3001;
 // both per-IP rate limiting and req.ip generally.
 app.set("trust proxy", 1);
 
-if (!process.env.FRONTEND_ORIGIN) {
-  throw new Error("FRONTEND_ORIGIN is not set");
-}
-
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN,
+  origin: process.env.FRONTEND_ORIGIN || "*",
   exposedHeaders: ["Idempotency-Key"],
 }));
 
