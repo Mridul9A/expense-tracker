@@ -13,6 +13,7 @@ process.env.DB_PATH = ":memory:";
 process.env.JWT_SECRET = "test-secret";
 process.env.NODE_ENV = "test";
 process.env.ENCRYPTION_KEY = "0".repeat(64); // 32-byte hex key, test-only
+process.env.FRONTEND_ORIGIN = "http://localhost:3002";
 
 const BASE_URL = "http://localhost:3002";
 

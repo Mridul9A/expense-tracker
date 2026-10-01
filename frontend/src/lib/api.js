@@ -10,7 +10,10 @@
 
 // Strip a trailing slash so a misconfigured env var (e.g. ".../ ") doesn't
 // produce a double-slash path like ".com//accounts", which the backend 404s on.
-const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:3001").replace(/\/+$/, "");
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error("VITE_API_URL is not set");
+}
+const BASE_URL = import.meta.env.VITE_API_URL.replace(/\/+$/, "");
 
 const TOKEN_STORAGE_KEY = "expense_tracker_token";
 
